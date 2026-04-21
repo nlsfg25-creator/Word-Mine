@@ -29,7 +29,6 @@
             position: relative;
         }
 
-        /* Stylized Clouds */
         body::before, body::after {
             content: ""; position: absolute; background: var(--cloud); border-radius: 50%; z-index: 0;
         }
@@ -39,7 +38,6 @@
         .page { display: none; width: 100%; height: 100%; position: absolute; z-index: 10; }
         .active { display: flex; flex-direction: column; align-items: center; }
 
-        /* --- HOME PAGE --- */
         #home-page { background: transparent; justify-content: center; gap: 20px; }
         
         .btn-ui {
@@ -59,7 +57,6 @@
         .btn-ui:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--dark); }
         .btn-start { background: var(--primary); }
 
-        /* --- GAME PAGE --- */
         #game-page { background: transparent; padding-top: 10px; }
 
         .game-header { width: 100%; display: flex; justify-content: space-around; align-items: center; padding: 10px; background: rgba(0,0,0,0.3); }
@@ -106,7 +103,6 @@
             box-shadow: 0 5px 0 var(--dark);
         }
 
-        /* --- RESULT OVERLAY --- */
         #result-page { 
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1000; flex-direction: column; justify-content: center; align-items: center;
@@ -123,20 +119,18 @@
         textarea { width: 80%; height: 150px; font-size: 1.2rem; border-radius: 10px; padding: 10px; }
         .t-name { width: 80%; padding: 10px; margin: 5px; font-size: 1.1rem; border-radius: 8px; border: none; }
 
-        /* --- ANIMATIONS --- */
         @keyframes textShake { 0%, 100% {transform: translateX(0);} 25% {transform: translateX(-10px);} 75% {transform: translateX(10px);} }
         .shake-text { animation: textShake 0.1s infinite; }
-        
         @keyframes pulse { 0% {transform: scale(1);} 50% {transform: scale(1.1);} 100% {transform: scale(1);} }
         .pulse { animation: pulse 0.5s infinite; }
 
         .footer-controls { position: fixed; bottom: 20px; width: 100%; display: flex; justify-content: center; z-index: 20; }
-
     </style>
 </head>
 <body>
 
-    <audio id="bg-music" loop src="snd_bgmusic.mp3"></audio> 
+    <audio id="bg-music" loop src="https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg"></audio> 
+    
     <audio id="snd-point" src="https://actions.google.com/sounds/v1/cartoon/clime_out.ogg"></audio>
     <audio id="snd-bomb" src="https://actions.google.com/sounds/v1/science_fiction/low_fuzz_explosion.ogg"></audio>
     <audio id="snd-star" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
@@ -182,8 +176,6 @@
 
     <script>
         let teamData = [];
-        let bombWords = new Set();
-        let starWords = new Set();
         let currentCard = null;
         let currentTurn = 0;
 
@@ -202,45 +194,47 @@
         function toggleMusic() {
             const music = document.getElementById('bg-music');
             const btn = document.getElementById('mute-btn');
-            if (music.paused) {
-                music.play();
-                btn.innerText = "🔊";
-            } else {
-                music.pause();
-                btn.innerText = "🔇";
-            }
+            if (music.paused) { music.play(); btn.innerText = "🔊"; } 
+            else { music.pause(); btn.innerText = "🔇"; }
         }
 
         function startGame() {
             if(teamData.length === 0) { alert("Add teams first!"); return; }
             
-            // Music logic: Start playing on button click
             const music = document.getElementById('bg-music');
             music.volume = 0.2; 
-            music.play().catch(e => console.log("Music blocked until interaction"));
+            music.play().catch(e => console.log("Music blocked"));
 
-            const words = document.getElementById('word-input').value.split(/[ ,]+/).filter(w => w !== "");
-            bombWords.clear();
-            starWords.clear();
-
-            let shuffled = [...words].sort(() => 0.5 - Math.random());
-            
-            let bombCount = Math.min(3, Math.floor(words.length / 3));
-            for(let i=0; i<bombCount; i++) bombWords.add(shuffled[i]);
-            for(let i=bombCount; i<bombCount+2; i++) if(shuffled[i]) starWords.add(shuffled[i]);
-
-            renderScoreboard();
-
+            const wordInput = document.getElementById('word-input').value;
+            const words = wordInput.split(/[ ,]+/).filter(w => w !== "");
             const grid = document.getElementById('word-grid');
             grid.innerHTML = '';
-            words.forEach(w => {
+
+            // --- RANDOM ASSIGNMENT LOGIC ---
+            // Create roles for EVERY card
+            let roles = new Array(words.length).fill('normal');
+            
+            // Assign some Bombs and Stars
+            let bombCount = Math.min(3, Math.floor(words.length / 3));
+            let starCount = 2;
+            for(let i=0; i < bombCount; i++) roles[i] = 'bomb';
+            for(let i=bombCount; i < bombCount + starCount; i++) roles[i] = 'star';
+
+            // Shuffle the roles
+            roles.sort(() => 0.5 - Math.random());
+
+            // Build the grid
+            words.forEach((w, index) => {
                 const card = document.createElement('div');
                 card.className = 'word-card';
                 card.innerText = w.toUpperCase();
-                card.onclick = () => reveal(card, w);
+                
+                const cardType = roles[index]; // Assign secret role by position
+                card.onclick = () => reveal(card, cardType); 
                 grid.appendChild(card);
             });
 
+            renderScoreboard();
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById('game-page').classList.add('active');
         }
@@ -258,23 +252,22 @@
             });
         }
 
-        function reveal(card, wordValue) {
+        function reveal(card, type) {
             currentCard = card;
             const resPage = document.getElementById('result-page');
             const resText = document.getElementById('result-text');
-            
             resText.classList.remove('shake-text', 'pulse');
 
             let points = 0;
 
-            if (bombWords.has(wordValue)) {
+            if (type === 'bomb') {
                 points = -5;
                 resText.innerText = `💣 BOMB!\n-5 pts for ${teamData[currentTurn].name}`;
                 resText.style.color = "var(--danger)";
                 resText.classList.add('shake-text');
                 document.getElementById('snd-bomb').currentTime = 0;
                 document.getElementById('snd-bomb').play();
-            } else if (starWords.has(wordValue)) {
+            } else if (type === 'star') {
                 points = 10;
                 resText.innerText = `⭐ STAR!\n+10 pts for ${teamData[currentTurn].name}`;
                 resText.style.color = "var(--primary)";
@@ -307,7 +300,6 @@
         }
 
         function endGame() {
-            // Stop the background music when game ends
             const music = document.getElementById('bg-music');
             music.pause();
 
@@ -316,14 +308,12 @@
             const resText = document.getElementById('result-text');
             
             resText.classList.remove('shake-text', 'pulse');
-            
             resText.innerHTML = `🏆 WINNER: ${winner.name}<br><span style="font-size:3rem">${winner.score} Points</span>`;
             resText.style.color = "white";
             
             const nextBtn = document.getElementById('next-btn');
             nextBtn.innerText = "PLAY AGAIN";
             nextBtn.onclick = () => location.reload();
-            
             resPage.style.display = 'flex';
         }
     </script>
