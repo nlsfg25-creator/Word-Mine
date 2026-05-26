@@ -165,7 +165,7 @@
     <div id="settings" class="overlay">
         <h1>ENTER WORDS</h1>
         <p>Separate words or phrases with commas (e.g. Red Apple, Blue Moon)</p>
-        <textarea id="word-input">Apple Pie, Yellow Banana, Red Cherry, Fire Dragon, Golden Eagle, Pine Forest</textarea><br><br>
+        <textarea id="word-input">Apple Pie, Yellow Banana, Red Cherry, Fire Dragon, Golden Eagle, Pine Forest, Deep Ocean, Silver Moon, Wild Tiger, Cosmic Star, Neon Light, Desert Storm, Thunder Cloud, Silent Night, Electric Storm, Mystic River</textarea><br><br>
         <button class="btn-ui" onclick="hideOverlays()">SAVE</button>
     </div>
 
@@ -219,8 +219,12 @@
 
             let roles = new Array(words.length).fill('normal');
             
-            let bombCount = Math.min(3, Math.floor(words.length / 3));
-            let starCount = 2;
+            // Scaled dynamically according to the newly updated total item configuration count
+            let bombCount = Math.floor(words.length / 4);
+            let starCount = Math.floor(words.length / 5);
+            if (bombCount < 1) bombCount = 1;
+            if (starCount < 1) starCount = 1;
+
             for(let i=0; i < bombCount; i++) roles[i] = 'bomb';
             for(let i=bombCount; i < bombCount + starCount; i++) roles[i] = 'star';
 
