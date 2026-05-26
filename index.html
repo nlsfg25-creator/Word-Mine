@@ -81,7 +81,6 @@
 
         .score-val { font-size: 1.8rem; font-weight: bold; display: block; }
 
-        /* CHANGED: Flex layout allows boxes to adjust to phrase length */
         #word-grid {
             display: flex;
             flex-wrap: wrap;
@@ -97,13 +96,13 @@
             background: white;
             border: 4px solid var(--dark);
             border-radius: 15px;
-            padding: 20px 30px; /* More horizontal padding for phrases */
+            padding: 20px 30px; 
             font-size: 1.5rem;
             text-align: center;
             font-weight: 600;
             cursor: pointer;
             box-shadow: 0 5px 0 var(--dark);
-            white-space: nowrap; /* Keeps the phrase on one line inside its box */
+            white-space: nowrap; 
         }
 
         #result-page { 
@@ -137,6 +136,7 @@
     <audio id="snd-point" src="https://actions.google.com/sounds/v1/cartoon/clime_out.ogg"></audio>
     <audio id="snd-bomb" src="https://actions.google.com/sounds/v1/science_fiction/low_fuzz_explosion.ogg"></audio>
     <audio id="snd-star" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+    <audio id="snd-victory" loop src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg"></audio>
 
     <div id="home-page" class="page active">
         <h1 style="color: white; font-size: 4rem; text-shadow: 4px 4px 0 #000;">WORD MINE!</h1>
@@ -182,6 +182,8 @@
         let teamData = [];
         let currentCard = null;
         let currentTurn = 0;
+        let isMusicMutedBySystem = false;
+        let suspenseModeActive = false; // Tracks if scores should hide behind question marks
 
         function showOverlay(id) { document.getElementById(id).style.display = 'block'; }
         function hideOverlays() { document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none'); }
@@ -205,13 +207,16 @@
         function startGame() {
             if(teamData.length === 0) { alert("Add teams first!"); return; }
             
+            document.getElementById('snd-bomb').load();
+            document.getElementById('snd-star').load();
+            document.getElementById('snd-point').load();
+            document.getElementById('snd-victory').load();
+
             const music = document.getElementById('bg-music');
             music.volume = 0.2; 
-            music.play().catch(e => console.log("Music blocked"));
+            music.play().catch(e => console.log("Audio waiting for interaction"));
 
             const wordInput = document.getElementById('word-input').value;
-            
-            // CHANGED: Splits only by comma, trims whitespace from ends but keeps spaces inside
             const words = wordInput.split(',').map(item => item.trim()).filter(w => w !== "");
             
             const grid = document.getElementById('word-grid');
@@ -219,7 +224,6 @@
 
             let roles = new Array(words.length).fill('normal');
             
-            // Scaled dynamically according to the newly updated total item configuration count
             let bombCount = Math.floor(words.length / 4);
             let starCount = Math.floor(words.length / 5);
             if (bombCount < 1) bombCount = 1;
@@ -240,6 +244,7 @@
                 grid.appendChild(card);
             });
 
+            suspenseModeActive = false; // Reset setup phase boundaries
             renderScoreboard();
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById('game-page').classList.add('active');
@@ -248,12 +253,23 @@
         function renderScoreboard() {
             const sb = document.getElementById('scoreboard');
             sb.innerHTML = '';
+            
+            // Check remaining items to trigger visibility suppression state alterations
+            const visibleCards = Array.from(document.querySelectorAll('.word-card')).filter(c => c.style.visibility !== 'hidden');
+            
+            // Hide display counts exactly when 12 items remain active
+            if(visibleCards.length === 12) {
+                suspenseModeActive = true;
+            }
+
             teamData.forEach((t, i) => {
                 const activeClass = (i === currentTurn) ? 'active-turn' : '';
+                const displayScore = suspenseModeActive ? "❓" : t.score;
+                
                 sb.innerHTML += `
                 <div class="team-box ${activeClass}" id="team-${i}">
                     <div style="font-size:0.8rem">${t.name}</div>
-                    <span class="score-val" id="score-${i}">${t.score}</span>
+                    <span class="score-val" id="score-${i}">${displayScore}</span>
                 </div>`;
             });
         }
@@ -262,7 +278,13 @@
             currentCard = card;
             const resPage = document.getElementById('result-page');
             const resText = document.getElementById('result-text');
+            const music = document.getElementById('bg-music');
             resText.classList.remove('shake-text', 'pulse');
+
+            if (!music.paused) {
+                music.pause();
+                isMusicMutedBySystem = true;
+            }
 
             let points = 0;
 
@@ -272,20 +294,20 @@
                 resText.style.color = "var(--danger)";
                 resText.classList.add('shake-text');
                 document.getElementById('snd-bomb').currentTime = 0;
-                document.getElementById('snd-bomb').play();
+                document.getElementById('snd-bomb').play().catch(e => console.log(e));
             } else if (type === 'star') {
                 points = 10;
                 resText.innerText = `⭐ STAR!\n+10 pts for ${teamData[currentTurn].name}`;
                 resText.style.color = "var(--primary)";
                 resText.classList.add('pulse');
                 document.getElementById('snd-star').currentTime = 0;
-                document.getElementById('snd-star').play();
+                document.getElementById('snd-star').play().catch(e => console.log(e));
             } else {
                 points = Math.floor(Math.random() * 5) + 1;
                 resText.innerText = `✅ CORRECT\n+${points} pts`;
                 resText.style.color = "var(--success)";
                 document.getElementById('snd-point').currentTime = 0;
-                document.getElementById('snd-point').play();
+                document.getElementById('snd-point').play().catch(e => console.log(e));
             }
 
             teamData[currentTurn].score += points;
@@ -294,6 +316,14 @@
 
         function closeResult() {
             document.getElementById('result-page').style.display = 'none';
+            
+            const music = document.getElementById('bg-music');
+            const muteBtn = document.getElementById('mute-btn');
+            if (isMusicMutedBySystem && muteBtn.innerText === "🔊") {
+                music.play().catch(e => console.log(e));
+                isMusicMutedBySystem = false;
+            }
+
             if (currentCard) {
                 currentCard.style.visibility = 'hidden';
                 currentCard.style.pointerEvents = 'none';
@@ -306,16 +336,39 @@
         }
 
         function endGame() {
-            const music = document.getElementById('bg-music');
-            music.pause();
+            // Mute all game session ambient tracks
+            document.getElementById('bg-music').pause();
 
-            let winner = teamData.reduce((prev, current) => (prev.score > current.score) ? prev : current);
+            // Run victory audio configuration layout triggers
+            const victorySong = document.getElementById('snd-victory');
+            victorySong.volume = 0.3;
+            victorySong.currentTime = 0;
+            victorySong.play().catch(e => console.log("Victory audio presentation blocked"));
+
+            // Sort team alignments securely based on gathered statistics values configuration
+            let sortedTeams = [...teamData].sort((a, b) => b.score - a.score);
+            
             const resPage = document.getElementById('result-page');
             const resText = document.getElementById('result-text');
-            
             resText.classList.remove('shake-text', 'pulse');
-            resText.innerHTML = `🏆 WINNER: ${winner.name}<br><span style="font-size:3rem">${winner.score} Points</span>`;
-            resText.style.color = "white";
+            
+            // Build tiered position configurations array string map output
+            let rankingHTML = `<span style="font-size: 2.5rem; color: #FFF;">📊 FINAL RANKINGS</span><br><br>`;
+            
+            sortedTeams.forEach((team, index) => {
+                let badge = "";
+                let placeText = "";
+                
+                if (index === 0) { badge = "🏆"; placeText = "1st Place"; }
+                else if (index === 1) { badge = "🥈"; placeText = "2nd Place"; }
+                else if (index === 2) { badge = "🥉"; placeText = "3rd Place"; }
+                else if (index === 3) { badge = "🎖️"; placeText = "4th Place"; }
+                else { badge = "•"; placeText = `${index + 1}th Place`; }
+
+                rankingHTML += `<span style="font-size: 2.2rem; display:block; margin: 10px 0;">${badge} <strong>${placeText}:</strong> ${team.name} (${team.score} pts)</span>`;
+            });
+
+            resText.innerHTML = rankingHTML;
             
             const nextBtn = document.getElementById('next-btn');
             nextBtn.innerText = "PLAY AGAIN";
